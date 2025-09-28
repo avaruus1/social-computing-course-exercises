@@ -24,7 +24,7 @@ FROM (SELECT user1_id, user2_id, (COUNT(DISTINCT C1.id) + COUNT(DISTINCT R1.id))
       GROUP BY user1_id, user2_id) bidir_engagement
 GROUP BY user1_id, user2_id
 ORDER BY total_engagement DESC
-LIMIT 40;
+LIMIT 3;
 
 
 
