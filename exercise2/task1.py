@@ -15,9 +15,24 @@ def do_plot(table_name: str):
 
     df["count_cumulative"] = df["count"].cumsum()
 
+    years = sorted(df["year"].unique())
+    max_year = years[-1]
+    for year in range(max_year + 1, max_year + 4):
+        years.append(year)
+
     df.plot(x="year", y="count", kind="line", title=table_name, xticks=np.arange(2021, 2025, 1))
     plt.show()
-    df.plot(x="year", y="count_cumulative", kind="line", title="cumulative_" + table_name, xticks=np.arange(2021, 2025, 1))
+    df.plot(x="year", y="count_cumulative", kind="line", xticks=np.arange(years[0], years[-1] + 1, 1))
+    plt.suptitle("cumulative_" + table_name)
+
+    z = np.polyfit(df["year"], df["count_cumulative"], 1)
+    p = np.poly1d(z)
+
+    plt.title(f"y={z[0]:.5f}x{z[1]:+.5f}")
+
+    # add trendline to plot
+    plt.plot(years, p(years), linestyle="--")
+
     plt.show()
 
 do_plot("users")
