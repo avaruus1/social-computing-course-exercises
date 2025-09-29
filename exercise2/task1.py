@@ -28,6 +28,7 @@ def do_plot(table_name: str):
     z = np.polyfit(df["year"], df["count_cumulative"], 1)
     p = np.poly1d(z)
 
+    print(f"{table_name}: y={z[0]:.5f}x{z[1]:+.5f}")
     plt.title(f"y={z[0]:.5f}x{z[1]:+.5f}")
 
     # add trendline to plot
