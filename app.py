@@ -973,14 +973,44 @@ def user_risk_analysis(user_id):
             password: admin
         Then, navigate to the /admin endpoint. (http://localhost:8080/admin)
     """
-    
-    score = 0
+    user = query_db("SELECT * FROM users WHERE id = ?", args=(user_id,), one=True)
+    posts = query_db("SELECT * FROM posts WHERE user_id = ?", args=(user_id,))
+    comments = query_db("SELECT * FROM comments WHERE user_id = ?", args=(user_id,))
 
-    return score;
+    account_days = (datetime.now() - user[4]).days
+    base_multiplier = 1.5 if account_days < 7 else 1.0
 
+    profile_score = compute_risk_score(user[5], base_multiplier) if user[5] else 0.0
+
+    post_score = 0.0
+    for post in posts:
+        post_score += compute_risk_score(post[2], base_multiplier)
+    post_score = post_score / len(posts) if posts else 0.0
+
+    comment_score = 0.0
+    for comment in comments:
+        comment_score += compute_risk_score(comment[3], base_multiplier)
+    comment_score = comment_score / len(comments) if comments else 0.0
+
+    content_risk_score = profile_score + (post_score * 3) + comment_score
+    if account_days < 7:
+        user_risk_score = content_risk_score * 1.5
+    elif account_days < 30:
+        user_risk_score = content_risk_score * 1.2
+    else:
+        user_risk_score = content_risk_score
+
+    return min(5.0, user_risk_score)
+
+
+def compute_risk_score(content: str, base_multiplier: float) -> float:
+    return moderate_content(content)[1] * base_multiplier
+
+
+LINK_PATTERN = r"(https?://.*?)( |$)"
     
 # Task 3.3
-def moderate_content(content):
+def moderate_content(content) -> tuple[str, float]:
     """
     Args
         content: the text content of a post or comment to be moderated.
@@ -996,10 +1026,31 @@ def moderate_content(content):
             password: admin
     Then, navigate to the /admin endpoint. (http://localhost:8080/admin)
     """
+    lowercase_content = content.lower()
+
+    for word in TIER1_WORDS:
+        if word.lower() in lowercase_content:
+            return "[content removed due to severe violation]", 5.0
+    for word in TIER2_PHRASES:
+        if word.lower() in lowercase_content:
+            return "[content removed due to spam/scam policy]", 5.0
 
     moderated_content = content
-    score = 0
-    
+    score = 0.0
+    for word in TIER3_WORDS:
+        score += 2.0 * len(re.findall(word, moderated_content, flags=re.IGNORECASE))
+        moderated_content = re.sub(word, "*" * len(word), moderated_content, flags=re.IGNORECASE)
+
+    score += 2.0 * len(re.findall(LINK_PATTERN, moderated_content, flags=re.IGNORECASE))
+    moderated_content = re.sub(LINK_PATTERN, r"[link removed]\2", moderated_content, flags=re.IGNORECASE)
+
+    uppercase_count = 0
+    for c in content:
+        if c.isupper():
+            uppercase_count += 1
+    if float(uppercase_count) / float(len(content)) > 0.7:
+        score += 0.5
+
     return moderated_content, score
 
 
