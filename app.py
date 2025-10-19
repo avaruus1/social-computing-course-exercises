@@ -1,6 +1,7 @@
 import traceback
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g
+from numpy import character
 from werkzeug.security import generate_password_hash, check_password_hash
 from cryptography.fernet import Fernet
 import collections
@@ -1053,6 +1054,19 @@ def moderate_content(content) -> tuple[str, float]:
                 uppercase_count += 1
     if alphabet_count > 15 and float(uppercase_count) / float(alphabet_count) > 0.7:
         score += 0.5
+
+    # Custom check: No more than 3 consecutive letters allowed
+    current_count = 0
+    current_char: str | None = None
+    for c in content:
+        if c == current_char:
+            current_count += 1
+        else:
+            current_char = c
+            current_count = 1
+        if current_count > 3:
+            score += 0.5
+            break
 
     return moderated_content, score
 
