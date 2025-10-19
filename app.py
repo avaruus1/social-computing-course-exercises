@@ -1044,11 +1044,14 @@ def moderate_content(content) -> tuple[str, float]:
     score += 2.0 * len(re.findall(LINK_PATTERN, moderated_content, flags=re.IGNORECASE))
     moderated_content = re.sub(LINK_PATTERN, r"[link removed]\2", moderated_content, flags=re.IGNORECASE)
 
+    alphabet_count = 0
     uppercase_count = 0
     for c in content:
-        if c.isupper():
-            uppercase_count += 1
-    if float(uppercase_count) / float(len(content)) > 0.7:
+        if c.isalpha():
+            alphabet_count += 1
+            if c.isupper():
+                uppercase_count += 1
+    if alphabet_count > 15 and float(uppercase_count) / float(alphabet_count) > 0.7:
         score += 0.5
 
     return moderated_content, score
