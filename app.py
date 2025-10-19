@@ -994,6 +994,15 @@ def user_risk_analysis(user_id):
     comment_score = comment_score / len(comments) if comments else 0.0
 
     content_risk_score = profile_score + (post_score * 3) + comment_score
+
+    # Custom check: Duplicate post detection
+    all_contents = set()
+    for content in [p[2] for p in posts] + [c[3] for c in comments]:
+        if content in all_contents:
+            content_risk_score += 1
+            break
+        all_contents.add(content)
+
     if account_days < 7:
         user_risk_score = content_risk_score * 1.5
     elif account_days < 30:
