@@ -510,6 +510,28 @@ def add_comment(post_id):
     # Redirect back to the page the user came from (likely the post detail page)
     return redirect(request.referrer or url_for('post_detail', post_id=post_id))
 
+@app.route('/posts/<int:post_id>/report', methods=['POST'])
+def report_post(post_id):
+    """Handles reporting a post"""
+    user_id = session.get('user_id')
+
+    # Block access if user is not logged in
+    if not user_id:
+        flash('You must be logged in to report a post.', 'danger')
+        return redirect(url_for('login'))
+
+    reason = request.form.get('reason')
+
+    if reason and reason.strip():
+        db = get_db()
+        db.execute("INSERT INTO reports (post_id, reporter_id, reason) VALUES (?, ?, ?);", (post_id, user_id, reason))
+        db.commit()
+        flash('Your report was submitted.', 'success')
+    else:
+        flash('Reason cannot be empty.', 'warning')
+
+    return redirect(request.referrer or url_for('post_detail', post_id=post_id))
+
 @app.route('/comments/<int:comment_id>/delete', methods=['POST'])
 def delete_comment(comment_id):
     """Handles deleting a comment."""
@@ -702,10 +724,12 @@ def admin_dashboard():
         users_page = int(request.args.get('users_page', 1))
         posts_page = int(request.args.get('posts_page', 1))
         comments_page = int(request.args.get('comments_page', 1))
+        reports_page = int(request.args.get('reports_page', 1))
     except ValueError:
         users_page = 1
         posts_page = 1
         comments_page = 1
+        reports_page = 1
     
     current_tab = request.args.get('tab', 'users') # Default to 'users' tab
 
@@ -784,11 +808,31 @@ def admin_dashboard():
 
     comments.sort(key=lambda x: x['risk_score'], reverse=True) # Sort after fetching and scoring
 
+    # Reports
+    reports_offset = (reports_page - 1) * PAGE_SIZE
+    total_reports_count = query_db("SELECT COUNT(*) count FROM reports", one=True)['count']
+    total_reports_pages = (total_reports_count + PAGE_SIZE - 1) // PAGE_SIZE
+
+    reports_raw = query_db(f'''
+    SELECT R.id, R.post_id, U.username, R.reason
+    FROM reports R LEFT JOIN users U ON R.reporter_id = U.id
+    WHERE NOT R.read
+    ORDER BY R.id DESC
+    LIMIT ? OFFSET ?
+    ''', (PAGE_SIZE, reports_offset))
+    reports = []
+    for report in reports_raw:
+        r = dict(report)
+        r["reporter"] = r["username"]
+        reports.append(r)
+
+
 
     return render_template('admin.html.j2', 
                            users=users, 
                            posts=posts, 
                            comments=comments,
+                           reports=reports,
                            
                            # Pagination for Users
                            users_page=users_page,
@@ -807,6 +851,12 @@ def admin_dashboard():
                            total_comments_pages=total_comments_pages,
                            comments_has_next=(comments_page < total_comments_pages),
                            comments_has_prev=(comments_page > 1),
+
+                           # Pagination for Reports
+                           reports_page=reports_page,
+                           total_reports_pages=total_reports_pages,
+                           reports_has_next=(reports_page < total_reports_pages),
+                           reports_has_prev=(reports_page > 1),
 
                            current_tab=current_tab,
                            PAGE_SIZE=PAGE_SIZE)
@@ -844,6 +894,19 @@ def admin_delete_post(post_id):
     flash(f'Post {post_id} has been deleted.', 'success')
     return redirect(url_for('admin_dashboard'))
 
+
+@app.route('/admin/report/<int:report_id>', methods=['POST'])
+def admin_report_read(report_id):
+    if session.get('username') != 'admin':
+        flash("You do not have permission to perform this action.", "danger")
+        return redirect(url_for('feed'))
+
+    db = get_db()
+    db.execute("UPDATE reports SET read = TRUE WHERE id = ?", (report_id,))
+    db.commit()
+    flash(f'Report {report_id} has been marked as read.', 'success')
+
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/delete/comment/<int:comment_id>', methods=['POST'])
 def admin_delete_comment(comment_id):
