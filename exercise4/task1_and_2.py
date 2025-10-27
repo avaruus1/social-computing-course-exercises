@@ -155,7 +155,7 @@ def main(data):
             text = post["content"]
             compute_and_add(analyzer, score_avg, text)
         do_divide(score_avg, topic_posts)
-        print(f"Average sentiment for topic {idx} posts: {score_avg}")
+        print(f"Average sentiment for topic {idx} posts & comments: {score_avg}")
 
 
 def compute_and_add(analyzer, score_avg, text):
